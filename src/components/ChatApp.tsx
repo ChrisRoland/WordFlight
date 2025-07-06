@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, onSnapshot, addDoc, serverTimestamp, query, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, onSnapshot, addDoc, serverTimestamp, query, orderBy, Timestamp, deleteDoc, doc, where, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import ChatRoom from './ChatRoom';
 import Sidebar from './Sidebar';
@@ -10,6 +10,7 @@ export interface Room {
   name: string;
   description?: string;
   createdAt: Timestamp | null;
+  createdBy?: string;
 }
 
 interface ChatAppProps {
@@ -39,6 +40,11 @@ export default function ChatApp({ userName }: ChatAppProps) {
       if (!currentRoomId && roomsData.length > 0) {
         setCurrentRoomId(roomsData[0].id);
       }
+      
+      // If current room was deleted, switch to first available room
+      if (currentRoomId && !roomsData.find(room => room.id === currentRoomId)) {
+        setCurrentRoomId(roomsData.length > 0 ? roomsData[0].id : '');
+      }
     });
 
     return () => unsubscribe();
@@ -54,6 +60,7 @@ export default function ChatApp({ userName }: ChatAppProps) {
         name: newRoomName.trim(),
         description: newRoomDescription.trim() || '',
         createdAt: serverTimestamp(),
+        createdBy: userName,
       });
       
       setCurrentRoomId(docRef.id);
@@ -63,6 +70,31 @@ export default function ChatApp({ userName }: ChatAppProps) {
       setSidebarOpen(false); // Close sidebar on mobile after creating room
     } catch (error) {
       console.error('Error creating room:', error);
+    }
+  };
+
+  // Delete a room and all its messages
+  const deleteRoom = async (roomId: string) => {
+    try {
+      // First, delete all messages in the room
+      const messagesQuery = query(collection(db, 'messages'), where('roomId', '==', roomId));
+      const messagesSnapshot = await getDocs(messagesQuery);
+      
+      // Delete all messages in the room
+      const deletePromises = messagesSnapshot.docs.map(messageDoc => 
+        deleteDoc(doc(db, 'messages', messageDoc.id))
+      );
+      await Promise.all(deletePromises);
+      
+      // Then delete the room itself
+      await deleteDoc(doc(db, 'rooms', roomId));
+      
+      // If we just deleted the current room, clear the selection
+      if (currentRoomId === roomId) {
+        setCurrentRoomId('');
+      }
+    } catch (error) {
+      console.error('Error deleting room:', error);
     }
   };
 
@@ -93,6 +125,7 @@ export default function ChatApp({ userName }: ChatAppProps) {
           currentRoomId={currentRoomId}
           onRoomSelect={handleRoomSelect}
           onCreateRoom={() => setShowCreateRoom(true)}
+          onDeleteRoom={deleteRoom}
           userName={userName}
           onClose={() => setSidebarOpen(false)}
         />
@@ -105,6 +138,7 @@ export default function ChatApp({ userName }: ChatAppProps) {
             userName={userName} 
             roomId={currentRoomId}
             roomName={currentRoom.name}
+            roomCreator={currentRoom.createdBy}
             onOpenSidebar={() => setSidebarOpen(true)}
           />
         ) : (

@@ -9,10 +9,12 @@ import {
   DocumentData,
   QuerySnapshot,
   Timestamp,
-  where
+  where,
+  deleteDoc,
+  doc
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { LucideRocket, Rocket, Menu } from 'lucide-react';
+import { LucideRocket, Rocket, Menu, MoreVertical, Trash2 } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -20,18 +22,22 @@ interface Message {
   userName: string;
   roomId: string;
   createdAt: Timestamp | null;
+  roomCreator?: string;
 }
 
 interface ChatRoomProps {
   userName: string;
   roomId: string;
   roomName: string;
+  roomCreator?: string;
   onOpenSidebar?: () => void;
 }
 
-export default function ChatRoom({ userName, roomId, roomName, onOpenSidebar }: ChatRoomProps) {
+export default function ChatRoom({ userName, roomId, roomName, roomCreator, onOpenSidebar }: ChatRoomProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [formValue, setFormValue] = useState('');
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // Subscribe to messages for current room
@@ -60,6 +66,16 @@ export default function ChatRoom({ userName, roomId, roomName, onOpenSidebar }: 
     return () => unsubscribe();
   }, [roomId]);
 
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setOpenMenuId(null);
+    };
+    
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
+
   // Send a new message
   const sendMessage = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -71,12 +87,29 @@ export default function ChatRoom({ userName, roomId, roomName, onOpenSidebar }: 
         createdAt: serverTimestamp(),
         userName,
         roomId,
+        roomCreator,
       });
       
       setFormValue('');
     } catch (error) {
       console.error('Error sending message:', error);
     }
+  };
+
+  // Delete message
+  const deleteMessage = async (messageId: string) => {
+    try {
+      await deleteDoc(doc(db, 'messages', messageId));
+      setShowDeleteConfirm(null);
+      setOpenMenuId(null);
+    } catch (error) {
+      console.error('Error deleting message:', error);
+    }
+  };
+
+  // Check if user can delete message
+  const canDeleteMessage = (message: Message) => {
+    return message.userName === userName || roomCreator === userName;
   };
 
   // Format timestamp
@@ -141,34 +174,70 @@ export default function ChatRoom({ userName, roomId, roomName, onOpenSidebar }: 
         ) : (
           messages.map(({ id, text, userName: messageUserName, createdAt }) => {
             const isMyMessage = messageUserName === userName;
+            const canDelete = canDeleteMessage({ id, text, userName: messageUserName, roomId, createdAt, roomCreator });
             
             return (
               <div
                 key={id}
-                className={`flex ${isMyMessage ? 'justify-end' : 'justify-start'}`}
+                className={`flex ${isMyMessage ? 'justify-end' : 'justify-start'} group`}
               >
-                <div className={`max-w-[75%] sm:max-w-xs lg:max-w-md px-3 lg:px-4 py-2 rounded-lg ${
-                  isMyMessage 
-                    ? 'bg-green-500 text-white' 
-                    : 'bg-purple-300 text-gray-800 border border-gray-200'
-                }`}>
-                  {/* Username (only show for other users) */}
-                  {!isMyMessage && (
-                    <div className="text-xs font-medium text-gray-500 mb-1">
-                      {messageUserName}
-                    </div>
-                  )}
-                  
-                  {/* Message text */}
-                  <div className="break-words text-sm lg:text-base">
-                    {text}
-                  </div>
-                  
-                  {/* Timestamp */}
-                  <div className={`text-xs mt-1 ${
-                    isMyMessage ? 'text-green-100' : 'text-gray-500'
+                <div className="relative">
+                  <div className={`max-w-[75%] sm:max-w-xs lg:max-w-md px-3 lg:px-4 py-2 rounded-lg ${
+                    isMyMessage 
+                      ? 'bg-green-500 text-white' 
+                      : 'bg-purple-300 text-gray-800 border border-gray-200'
                   }`}>
-                    {formatTime(createdAt)}
+                    {/* Username (only show for other users) */}
+                    {!isMyMessage && (
+                      <div className="text-xs font-medium text-gray-500 mb-1">
+                        {messageUserName}
+                      </div>
+                    )}
+                    
+                    {/* Message text */}
+                    <div className="break-words text-sm lg:text-base pr-6">
+                      {text}
+                    </div>
+                    
+                    {/* Timestamp */}
+                    <div className={`text-xs mt-1 ${
+                      isMyMessage ? 'text-green-100' : 'text-gray-500'
+                    }`}>
+                      {formatTime(createdAt)}
+                    </div>
+
+                    {/* Three dots menu */}
+                    {canDelete && (
+                      <div className="absolute top-1 right-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenMenuId(openMenuId === id ? null : id);
+                          }}
+                          className={`opacity-0 group-hover:opacity-100 p-1 rounded transition-opacity ${
+                            isMyMessage ? 'hover:bg-green-600' : 'hover:bg-purple-400'
+                          }`}
+                        >
+                          <MoreVertical className="size-3" />
+                        </button>
+                        
+                        {/* Dropdown menu */}
+                        {openMenuId === id && (
+                          <div className="absolute right-0 top-6 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-[120px]">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowDeleteConfirm(id);
+                              }}
+                              className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 rounded-lg flex items-center gap-2"
+                            >
+                              <Trash2 className="size-3" />
+                              Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -196,6 +265,37 @@ export default function ChatRoom({ userName, roomId, roomName, onOpenSidebar }: 
           </button>
         </form>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white p-4 lg:p-6 rounded-lg max-w-sm w-full">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex-shrink-0 w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
+                <Trash2 className="size-4 text-red-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Delete Message</h3>
+            </div>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete this message? This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(null)}
+                className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400 transition duration-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => deleteMessage(showDeleteConfirm)}
+                className="flex-1 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition duration-300"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
