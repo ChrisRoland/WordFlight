@@ -25,16 +25,29 @@ export default function Sidebar({
 }: SidebarProps) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
 
   // Close menu when clicking outside
   useEffect(() => {
-    const handleClickOutside = () => {
-      setOpenMenuId(null);
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.room-menu')) {
+        setOpenMenuId(null);
+      }
     };
     
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
+
+  // Clean up long press timer
+  useEffect(() => {
+    return () => {
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+      }
+    };
+  }, [longPressTimer]);
 
   const handleDeleteRoom = (roomId: string) => {
     onDeleteRoom(roomId);
@@ -42,9 +55,38 @@ export default function Sidebar({
     setOpenMenuId(null);
   };
 
+  // Handle long press for mobile
+  const handleTouchStart = (roomId: string) => {
+    const timer = setTimeout(() => {
+      setOpenMenuId(roomId);
+    }, 500); // 500ms long press
+    setLongPressTimer(timer);
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      setLongPressTimer(null);
+    }
+  };
+
+  // Handle room click - prevent if menu is open
+  const handleRoomClick = (roomId: string, e: React.MouseEvent) => {
+    // If clicking on the menu button or menu, don't select the room
+    const target = e.target as HTMLElement;
+    if (target.closest('.room-menu')) {
+      return;
+    }
+    
+    // Only select room if menu isn't open
+    if (!openMenuId) {
+      onRoomSelect(roomId);
+    }
+  };
+
   return (
     <>
-      <div className="w-80 lg:w-80 h-full bg-white border-r border-gray-200 flex flex-col">
+      <div className="w-80 lg:w-80 h-screen bg-white border-r border-gray-200 flex flex-col">
         {/* Header */}
         <div className="p-4 border-b border-gray-200 flex items-center justify-between">
           <div className="flex items-center">
@@ -96,7 +138,10 @@ export default function Sidebar({
                 {rooms.map((room) => (
                   <div key={room.id} className="relative group">
                     <button
-                      onClick={() => onRoomSelect(room.id)}
+                      onClick={(e) => handleRoomClick(room.id, e)}
+                      onTouchStart={() => handleTouchStart(room.id)}
+                      onTouchEnd={handleTouchEnd}
+                      onTouchCancel={handleTouchEnd}
                       className={`w-full text-left px-3 py-2 lg:py-3 rounded-lg transition-colors cursor-pointer pr-8 ${
                         currentRoomId === room.id
                           ? 'bg-green-100 text-green-700 border-l-4 border-green-500'
@@ -114,13 +159,14 @@ export default function Sidebar({
                     </button>
                     
                     {/* Three dots menu */}
-                    <div className="absolute top-2 right-2">
+                    <div className="absolute top-2 right-2 room-menu">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
+                          e.preventDefault();
                           setOpenMenuId(openMenuId === room.id ? null : room.id);
                         }}
-                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-gray-200 transition-opacity"
+                        className="lg:opacity-0 lg:group-hover:opacity-100 opacity-100 p-1 rounded cursor-pointer hover:bg-gray-200 transition-opacity"
                       >
                         <MoreVertical className="size-3 text-gray-500" />
                       </button>
@@ -131,12 +177,13 @@ export default function Sidebar({
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
+                              e.preventDefault();
                               setShowDeleteConfirm(room.id);
                             }}
-                            className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 rounded-lg flex items-center gap-2"
+                            className="w-full px-3 py-2 text-left text-sm text-red-600 cursor-pointer hover:bg-red-50 rounded-lg flex items-center gap-2"
                           >
                             <Trash2 className="size-3" />
-                            Delete Room
+                            Delete
                           </button>
                         </div>
                       )}
@@ -159,7 +206,7 @@ export default function Sidebar({
 
       {/* Delete Room Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/75 bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white p-4 lg:p-6 rounded-lg max-w-sm w-full">
             <div className="flex items-center gap-3 mb-4">
               <div className="flex-shrink-0 w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
@@ -179,9 +226,9 @@ export default function Sidebar({
               </button>
               <button
                 onClick={() => handleDeleteRoom(showDeleteConfirm)}
-                className="flex-1 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition duration-300"
+                className="flex-1 bg-red-500 text-white px-4 py-2 rounded-lg cursor-pointer hover:bg-red-600 transition duration-300"
               >
-                Delete Room
+                Delete
               </button>
             </div>
           </div>
