@@ -1,7 +1,9 @@
 "use client"
 
 import { useState } from 'react';
+import Image from 'next/image';
 import ChatApp from '../components/ChatApp';
+import Logo from '/public/WFLogo.png';
 
 export default function Home() {
   const [name, setName] = useState('');
@@ -11,7 +13,8 @@ export default function Home() {
     return (
       <div className="h-screen flex items-center justify-center bg-gray-50">
         <div className="bg-white p-8 rounded-lg shadow-lg max-w-md w-full mx-4">
-          <h1 className="text-2xl font-bold text-center mb-6 text-gray-800">
+          <h1 className="flex flex-col items-center justify-center text-2xl font-bold text-center mb-6 text-gray-800">
+            <Image src={Logo} alt='logo' className='size-20'/>
             Welcome to WordFlight
           </h1>
           <form
@@ -30,7 +33,7 @@ export default function Home() {
             />
             <button 
               type="submit"
-              className="w-full bg-green-500 text-white px-4 py-3 rounded-lg hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 font-medium transition duration-300"
+              className="w-full bg-green-500 text-white px-4 py-3 rounded-lg hover:bg-green-600 cursor-pointer focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 font-medium transition duration-300"
             >
               Join Chat
             </button>

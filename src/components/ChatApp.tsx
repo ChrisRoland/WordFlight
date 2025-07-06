@@ -95,7 +95,7 @@ export default function ChatApp({ userName }: ChatAppProps) {
               <p className="text-gray-500 mb-6">Create your first room to start chatting!</p>
               <button
                 onClick={() => setShowCreateRoom(true)}
-                className="bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600 transition duration-300 font-medium"
+                className="bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600 cursor-pointer transition duration-300 font-medium"
               >
                 Create First Room
               </button>
@@ -149,7 +149,7 @@ export default function ChatApp({ userName }: ChatAppProps) {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition duration-300"
+                  className="flex-1 bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 cursor-pointer transition duration-300"
                 >
                   Create Room
                 </button>

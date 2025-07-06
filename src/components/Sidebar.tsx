@@ -1,4 +1,6 @@
+import Image from 'next/image';
 import { Room } from './ChatApp';
+import Logo from '/public/WFLogo.png';
 
 interface SidebarProps {
   rooms: Room[];
@@ -19,7 +21,7 @@ export default function Sidebar({
     <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
       {/* Header */}
       <div className="p-4 border-b border-gray-200">
-        <h1 className="text-xl font-bold text-gray-800">WordFlight</h1>
+        <h1 className="flex items-center text-xl font-bold text-gray-800"><Image src={Logo} alt='logo' className='size-10'/> WordFlight</h1>
         <p className="text-sm text-gray-600">Welcome, {userName}</p>
       </div>
 
@@ -27,7 +29,7 @@ export default function Sidebar({
       <div className="p-4 border-b border-gray-200">
         <button
           onClick={onCreateRoom}
-          className="w-full bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 text-sm font-medium transition duration-300"
+          className="w-full bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 cursor-pointer focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 text-sm font-medium transition duration-300"
         >
           + Create New Room
         </button>
@@ -49,7 +51,7 @@ export default function Sidebar({
                 <button
                   key={room.id}
                   onClick={() => onRoomSelect(room.id)}
-                  className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
+                  className={`w-full text-left px-3 py-2 rounded-lg transition-colors cursor-pointer ${
                     currentRoomId === room.id
                       ? 'bg-green-100 text-green-700 border-l-4 border-green-500'
                       : 'text-gray-700 hover:bg-gray-100'
