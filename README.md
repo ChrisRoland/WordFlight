@@ -230,6 +230,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [ ] **Voice messages** support
 - [ ] **Message threading** for better organization
 
+---
+## ⚠️ Disclaimer/Security notice
+
+This app is currently public! Private message/channel features have not been implemented. App has not received external security review and may contain vulnerabilities. Do not use for sensitive use cases or share private info. ⛑️ work in progress. 
 
 ---
 

@@ -39,6 +39,11 @@ export default function Home() {
             </button>
           </form>
         </div>
+        <div className="absolute bottom-0 left-0 right-0 p-4 bg-yellow-100">
+          <p className="text-sm text-gray-500 mt-4 text-center">
+            ⚠️ Disclaimer/Security notice: This app is currently public! Private message/channel features have not been implemented. App has not received external security review and may contain vulnerabilities. Do not use for sensitive use cases or share private info. ⛑️ work in progress. 
+          </p>
+        </div>
       </div>
     );
   }
