@@ -15,7 +15,6 @@ import {
   limit,
   startAfter,
   getDocs,
-  // limitToLast
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { LucideRocket, Rocket, Menu, MoreVertical, Trash2, ChevronUp } from 'lucide-react';
@@ -35,6 +34,7 @@ interface ChatRoomProps {
   roomName: string;
   roomCreator?: string;
   onOpenSidebar?: () => void;
+  onNewMessage?: () => void; // New prop for notification system
 }
 
 // Utility function to generate avatar colors based on username
@@ -117,7 +117,7 @@ const Avatar = ({ userName, size = 'md' }: { userName: string; size?: 'sm' | 'md
   );
 };
 
-export default function ChatRoom({ userName, roomId, roomName, roomCreator, onOpenSidebar }: ChatRoomProps) {
+export default function ChatRoom({ userName, roomId, roomName, roomCreator, onOpenSidebar, onNewMessage }: ChatRoomProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [formValue, setFormValue] = useState('');
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -286,6 +286,11 @@ export default function ChatRoom({ userName, roomId, roomName, roomCreator, onOp
       
       setFormValue('');
       scrollToBottom(); // Scroll to bottom when user sends a message
+      
+      // Notify parent component about new message (for notification system)
+      if (onNewMessage) {
+        onNewMessage();
+      }
     } catch (error) {
       console.error('Error sending message:', error);
     }
