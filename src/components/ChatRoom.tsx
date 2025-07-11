@@ -11,10 +11,13 @@ import {
   Timestamp,
   where,
   deleteDoc,
-  doc
+  doc,
+  limit,
+  startAfter,
+  getDocs,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { LucideRocket, Rocket, Menu, MoreVertical, Trash2 } from 'lucide-react';
+import { LucideRocket, Rocket, Menu, MoreVertical, Trash2, ChevronUp } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -31,6 +34,7 @@ interface ChatRoomProps {
   roomName: string;
   roomCreator?: string;
   onOpenSidebar?: () => void;
+  onNewMessage?: () => void; // New prop for notification system
 }
 
 // Utility function to generate avatar colors based on username
@@ -113,39 +117,129 @@ const Avatar = ({ userName, size = 'md' }: { userName: string; size?: 'sm' | 'md
   );
 };
 
-export default function ChatRoom({ userName, roomId, roomName, roomCreator, onOpenSidebar }: ChatRoomProps) {
+export default function ChatRoom({ userName, roomId, roomName, roomCreator, onOpenSidebar, onNewMessage }: ChatRoomProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [formValue, setFormValue] = useState('');
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [longPressTimer, setLongPressTimer] = useState<NodeJS.Timeout | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
-  // Subscribe to messages for current room
+  // Optimized pagination settings
+  const MESSAGES_LIMIT = 25; // Only load 25 most recent messages initially
+  const LOAD_MORE_LIMIT = 20; // Load 20 more when scrolling up
+
+  // Load initial messages with pagination and real-time listener
   useEffect(() => {
     if (!roomId) return;
 
-    const q = query(
-      collection(db, 'messages'),
-      where('roomId', '==', roomId),
-      orderBy('createdAt', 'asc')
-    );
-    
-    const unsubscribe = onSnapshot(q, (snap: QuerySnapshot<DocumentData>) => {
-      const msgs: Message[] = snap.docs.map(d => ({ 
-        id: d.id, 
-        ...d.data() 
-      } as Message));
-      setMessages(msgs);
+    let unsubscribe: (() => void) | null = null;
+
+    const loadMessages = () => {
+      // Query for the most recent messages with limit
+      const q = query(
+        collection(db, 'messages'),
+        where('roomId', '==', roomId),
+        orderBy('createdAt', 'desc'), // Get newest first
+        limit(MESSAGES_LIMIT)
+      );
       
-      // scroll to bottom
-      setTimeout(() => {
-        bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
-    });
+      // Real-time listener for new messages only
+      unsubscribe = onSnapshot(q, (snap: QuerySnapshot<DocumentData>) => {
+        const msgs: Message[] = snap.docs
+          .map(d => ({ 
+            id: d.id, 
+            ...d.data() 
+          } as Message))
+          .reverse(); // Reverse to show oldest first
+        
+        setMessages(msgs);
+        setHasMoreMessages(snap.docs.length === MESSAGES_LIMIT);
+        
+        // Only scroll to bottom on initial load or when user sends a message
+        if (isInitialLoad) {
+          setTimeout(() => {
+            bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+            setIsInitialLoad(false);
+          }, 100);
+        }
+      });
+    };
+
+    loadMessages();
     
-    return () => unsubscribe();
-  }, [roomId]);
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [roomId, isInitialLoad]);
+
+  // Load more older messages
+  const loadMoreMessages = async () => {
+    if (!roomId || loading || !hasMoreMessages || messages.length === 0) return;
+
+    setLoading(true);
+    
+    try {
+      // Get the oldest message timestamp
+      const oldestMessage = messages[0];
+      if (!oldestMessage?.createdAt) return;
+
+      // Query for older messages
+      const q = query(
+        collection(db, 'messages'),
+        where('roomId', '==', roomId),
+        orderBy('createdAt', 'desc'),
+        startAfter(oldestMessage.createdAt),
+        limit(LOAD_MORE_LIMIT)
+      );
+
+      const snapshot = await getDocs(q);
+      const olderMessages: Message[] = snapshot.docs
+        .map(d => ({ 
+          id: d.id, 
+          ...d.data() 
+        } as Message))
+        .reverse(); // Reverse to show oldest first
+
+      if (olderMessages.length > 0) {
+        // Preserve scroll position
+        const container = messagesContainerRef.current;
+        const scrollHeightBefore = container?.scrollHeight || 0;
+        
+        setMessages(prev => [...olderMessages, ...prev]);
+        
+        // Restore scroll position after adding messages
+        setTimeout(() => {
+          if (container) {
+            const scrollHeightAfter = container.scrollHeight;
+            container.scrollTop = scrollHeightAfter - scrollHeightBefore;
+          }
+        }, 0);
+      }
+
+      setHasMoreMessages(snapshot.docs.length === LOAD_MORE_LIMIT);
+    } catch (error) {
+      console.error('Error loading more messages:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Optimized scroll handler for loading more messages
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop } = e.currentTarget;
+    
+    // Load more when scrolled near the top
+    if (scrollTop < 100 && hasMoreMessages && !loading) {
+      loadMoreMessages();
+    }
+  };
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -169,6 +263,13 @@ export default function ChatRoom({ userName, roomId, roomName, roomCreator, onOp
     };
   }, [longPressTimer]);
 
+  // Scroll to bottom when user sends a message
+  const scrollToBottom = () => {
+    setTimeout(() => {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  };
+
   // Send a new message
   const sendMessage = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -184,6 +285,12 @@ export default function ChatRoom({ userName, roomId, roomName, roomCreator, onOp
       });
       
       setFormValue('');
+      scrollToBottom(); // Scroll to bottom when user sends a message
+      
+      // Notify parent component about new message (for notification system)
+      if (onNewMessage) {
+        onNewMessage();
+      }
     } catch (error) {
       console.error('Error sending message:', error);
     }
@@ -242,7 +349,7 @@ export default function ChatRoom({ userName, roomId, roomName, roomCreator, onOp
               <p className="text-xs lg:text-sm text-gray-600 truncate">
                 {messages.length === 0 
                   ? 'No messages yet. Start the conversation!' 
-                  : `${messages.length} message${messages.length !== 1 ? 's' : ''}`
+                  : `${hasMoreMessages ? `${messages.length}+` : messages.length} message${messages.length !== 1 ? 's' : ''}`
                 }
               </p>
             </div>
@@ -258,7 +365,25 @@ export default function ChatRoom({ userName, roomId, roomName, roomCreator, onOp
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-3 lg:p-4 space-y-2 lg:space-y-3">
+      <div 
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto p-3 lg:p-4 space-y-2 lg:space-y-3"
+        onScroll={handleScroll}
+      >
+        {/* Load More Button */}
+        {hasMoreMessages && (
+          <div className="flex justify-center py-2">
+            <button
+              onClick={loadMoreMessages}
+              disabled={loading}
+              className="flex items-center space-x-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 rounded-lg text-sm text-gray-600 transition-colors"
+            >
+              <ChevronUp className="size-4" />
+              <span>{loading ? 'Loading...' : 'Load older messages'}</span>
+            </button>
+          </div>
+        )}
+
         {messages.length === 0 ? (
           <div className="flex-1 flex items-center justify-center min-h-full">
             <div className="text-center text-gray-500 max-w-sm px-4">

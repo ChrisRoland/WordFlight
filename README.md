@@ -15,6 +15,7 @@ A modern, real-time chat application built with Next.js and Firebase. Grant your
 ###  **User Experience**
 - **Simple authentication** - Quick name-based login to get started (For now)
 - **User avatars** - Colorful, initials-based avatars for easy user identification
+- **Notifications** - Sounds, unread message badges and toasts with new messages.
 - **Smart timestamps** - Context-aware time display (Today, Yesterday, Day names, Full dates)
 - **Message management** - Delete your own messages or manage room content as a creator
 
